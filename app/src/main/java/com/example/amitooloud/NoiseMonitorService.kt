@@ -104,6 +104,11 @@ class NoiseMonitorService : Service() {
                             // 20 * log10(rms / 32768.0) is dB relative to full scale (dBFS)
                             var db = if (rms > 0.1) 20 * log10(rms / 32768.0) + 90 else 0.0
 
+                            // If dB is very low (noise floor), let's map it closer to 0
+                            if (db < 30) {
+                                db = (db - 27.0).coerceAtLeast(0.0) * (30.0 / 3.0)
+                            }
+
                             // Broadcast the noise level
                             val intent = Intent(ACTION_NOISE_UPDATE)
                             intent.putExtra(EXTRA_DB, db)

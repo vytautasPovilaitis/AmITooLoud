@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -16,7 +17,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
 
@@ -29,7 +29,9 @@ class MainActivity : AppCompatActivity() {
 
     private var currentThreshold = 70.0
     private lateinit var tvCurrentNoise: TextView
+    private lateinit var tvThreshold: TextView
     private lateinit var switchMonitor: SwitchCompat
+    private lateinit var ivNoiseEmoji: ImageView
 
     private val PRESET_LIBRARY = 40.0
     private val PRESET_KITCHEN = 80.0
@@ -39,6 +41,19 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val db = intent?.getDoubleExtra(NoiseMonitorService.EXTRA_DB, 0.0) ?: 0.0
             tvCurrentNoise.text = getString(R.string.current_noise_label, db.toInt())
+            
+            val emojiRes = when {
+                db < currentThreshold * 0.5 -> R.drawable.ic_noise_low
+                db < currentThreshold -> R.drawable.ic_noise_mid
+                else -> R.drawable.ic_noise_high
+            }
+            ivNoiseEmoji.setImageResource(emojiRes)
+            
+            if (db > currentThreshold) {
+                tvCurrentNoise.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_danger))
+            } else {
+                tvCurrentNoise.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_safe))
+            }
         }
     }
 
@@ -47,12 +62,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         tvCurrentNoise = findViewById(R.id.tvCurrentNoise)
+        tvThreshold = findViewById(R.id.tvThreshold)
+        ivNoiseEmoji = findViewById(R.id.ivNoiseEmoji)
         val rgPresets = findViewById<RadioGroup>(R.id.rgPresets)
         switchMonitor = findViewById(R.id.switchMonitor)
 
         updateStatus(false)
         
-        // Setup Presets
         rgPresets.setOnCheckedChangeListener { _, checkedId ->
             when (checkedId) {
                 R.id.rbLibrary -> {
@@ -66,13 +82,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            // If monitoring is active, restart service to apply new threshold
             if (switchMonitor.isChecked) {
                 startNoiseService()
             }
         }
 
-        // Default selection
         rgPresets.check(R.id.rbLibrary)
 
         switchMonitor.setOnCheckedChangeListener { _, isChecked ->
@@ -104,11 +118,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus(isMonitoring: Boolean) {
         if (isMonitoring) {
-            tvCurrentNoise.setTextColor(ContextCompat.getColor(this, R.color.green))
+            tvCurrentNoise.setTextColor(ContextCompat.getColor(this, R.color.status_safe))
             tvCurrentNoise.text = getString(R.string.current_noise_label, 0)
+            tvThreshold.text = getString(R.string.threshold_label, currentThreshold.toInt())
+            tvThreshold.visibility = View.VISIBLE
+            ivNoiseEmoji.visibility = View.VISIBLE
+            ivNoiseEmoji.setImageResource(R.drawable.ic_noise_low)
         } else {
-            tvCurrentNoise.setTextColor(ContextCompat.getColor(this, R.color.gray))
+            tvCurrentNoise.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             tvCurrentNoise.text = getString(R.string.current_noise_disabled)
+            tvThreshold.visibility = View.GONE
+            ivNoiseEmoji.visibility = View.INVISIBLE
         }
     }
 

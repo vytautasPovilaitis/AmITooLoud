@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors - Lighter shades for Dark Theme -->
+    <color name="primary">#90CAF9</color>
+    <color name="primary_dark">#1976D2</color>
+    <color name="accent">#F48FB1</color>
+
+    <!-- Status Colors - Slightly desaturated for Dark Theme -->
+    <color name="status_safe">#81C784</color>
+    <color name="status_warning">#FFF176</color>
+    <color name="status_danger">#E57373</color>
+    <color name="gray_disabled">#424242</color>
+
+    <!-- Backgrounds -->
+    <color name="background_subtle">#121212</color>
+    <color name="surface_card">#1E1E1E</color>
+
+    <!-- Text -->
+    <color name="text_primary">#E1E1E1</color>
+    <color name="text_secondary">#B0B0B0</color>
+
+    <!-- Legacy / Compatibility -->
+    <color name="green">#81C784</color>
+    <color name="red">#E57373</color>
+    <color name="gray">#B0B0B0</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>
