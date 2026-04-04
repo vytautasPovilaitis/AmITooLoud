@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">AmI2Loud</string>
+    <string name="display_app_name">AmI2Loud</string>
+    <string name="noise_monitor">Triukšmo matuoklis</string>
+    <string name="monitoring_toggle">Stebėjimas</string>
+
+    <string name="preset_library">Biblioteka</string>
+    <string name="preset_restaurant">Restoranas</string>
+    <string name="preset_kitchen">Virtuvė</string>
+    <string name="select_environment">Kur esi?</string>
+    <string name="current_noise_label">Triukšmo lygis: %d dB</string>
+    <string name="current_noise_disabled">Triukšmo lygis: nesvarbu</string>
+    <string name="threshold_label">Riba: %d dB</string>
+    <string name="status_label">Būsena: %s</string>
+    <string name="status_monitoring">Stebima</string>
+    <string name="status_stopped">Sustabdyta</string>
+
+    <!-- Notification & Toast strings -->
+    <string name="notification_title">Per garsu!</string>
+    <string name="notification_text">Triukšmo lygis viršijo nustatytą ribą.</string>
+    <string name="permissions_required">Stebėjimui reikalingi leidimai</string>
+    <string name="channel_name_background">Triukšmo matuoklis (Fonas)</string>
+    <string name="channel_desc_background">Reikalinga stebėjimui fone</string>
+    <string name="channel_name_alerts">Triukšmo lygio perspėjimai</string>
+    <string name="channel_desc_alerts">Perspėja, kai triukšmas per garsus</string>
+</resources>
