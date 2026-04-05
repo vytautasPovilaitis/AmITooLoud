@@ -52,7 +52,7 @@
                         android:adjustViewBounds="true"
                         android:contentDescription="@string/noise_emoji_description"
                         android:scaleType="fitCenter"
-                        android:src="@drawable/monika" />
+                        android:src="@drawable/monika_laiminga" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
