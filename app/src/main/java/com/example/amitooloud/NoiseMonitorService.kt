@@ -86,7 +86,6 @@ class NoiseMonitorService : Service() {
                 var sumSq = 0.0
                 var totalSamples = 0
                 val sampleRate = 44100
-                val windowSize = sampleRate 
 
                 while (isRunning) {
                     val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
@@ -97,14 +96,14 @@ class NoiseMonitorService : Service() {
                         }
                         totalSamples += readSize
 
-                        // When we have enough samples for the 1s window
-                        if (totalSamples >= windowSize) {
+                        // When we have enough samples (shorter window for smoother updates)
+                        if (totalSamples >= 4410) { // 0.1s update interval
                             val rms = Math.sqrt(sumSq / totalSamples)
                             
                             // 20 * log10(rms / 32768.0) is dB relative to full scale (dBFS)
                             var db = if (rms > 0.1) 20 * log10(rms / 32768.0) + 90 else 0.0
 
-                            // If dB is very low (noise floor), let's map it closer to 0
+                            // Smoothing logic
                             if (db < 30) {
                                 db = (db - 27.0).coerceAtLeast(0.0) * (30.0 / 3.0)
                             }

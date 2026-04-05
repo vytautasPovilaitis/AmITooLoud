@@ -2,15 +2,15 @@
     <string name="app_name">AmI2Loud</string>
     <string name="display_app_name">AmI2Loud</string>
     <string name="noise_monitor">Triukšmo matuoklis</string>
-    <string name="monitoring_toggle">Stebėjimas</string>
+    <string name="monitoring_toggle">Džedžinimas</string>
 
     <string name="preset_library">Biblėj</string>
-    <string name="preset_restaurant">Restike</string>
-    <string name="preset_kitchen">Virtuvėj</string>
+    <string name="preset_restaurant">Restorane</string>
+    <string name="preset_kitchen">Virtuvėj aiškinu Vytautui apie kapitalizmą, filmus ar VDU</string>
     <string name="select_environment">Kur esi?</string>
-    <string name="current_noise_label">Triukšmo lygis: %d dB</string>
-    <string name="current_noise_disabled">Triukšmo lygis: nesvarbu</string>
-    <string name="threshold_label">Riba: %d dB</string>
+    <string name="current_noise_label">Garsumo lygis</string>
+    <string name="current_noise_disabled">Garsumo lygis</string>
+
     <string name="status_label">Būsena: %s</string>
     <string name="status_monitoring">Stebima</string>
     <string name="status_stopped">Sustabdyta</string>
@@ -23,5 +23,5 @@
     <string name="channel_desc_background">Reikalinga stebėjimui fone</string>
     <string name="channel_name_alerts">Triukšmo lygio perspėjimai</string>
     <string name="channel_desc_alerts">Perspėja, kai triukšmas per garsus</string>
-    <string name="noise_emoji_description">Triukšmo lygio veidelis</string>
+    <string name="noise_emoji_description">Monika</string>
 </resources>

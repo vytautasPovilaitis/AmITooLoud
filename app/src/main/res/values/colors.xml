@@ -8,7 +8,7 @@
     <!-- Status Colors -->
     <color name="status_safe">#43A047</color>
     <color name="status_warning">#FBC02D</color>
-    <color name="status_danger">#E53935</color>
+    <color name="status_danger">#4A0000</color>
     <color name="gray_disabled">#BDBDBD</color>
 
     <!-- Backgrounds -->

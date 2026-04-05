@@ -18,6 +18,8 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
+import java.util.Locale
+
 class MainActivity : AppCompatActivity() {
 
     private val recordAudioPermission = Manifest.permission.RECORD_AUDIO
@@ -28,10 +30,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var currentThreshold = 70.0
-    private lateinit var tvCurrentNoise: TextView
-    private lateinit var tvThreshold: TextView
+    private var smoothedRatio = 0.0f
     private lateinit var switchMonitor: SwitchCompat
     private lateinit var ivNoiseEmoji: ImageView
+    private lateinit var noiseCard: com.google.android.material.card.MaterialCardView
+    private lateinit var tvDebugDb: TextView
+    private lateinit var innerNoiseLayout: android.widget.LinearLayout
 
     private val PRESET_LIBRARY = 40.0
     private val PRESET_KITCHEN = 80.0
@@ -40,30 +44,55 @@ class MainActivity : AppCompatActivity() {
     private val noiseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val db = intent?.getDoubleExtra(NoiseMonitorService.EXTRA_DB, 0.0) ?: 0.0
-            tvCurrentNoise.text = getString(R.string.current_noise_label, db.toInt())
             
-            val emojiRes = when {
-                db < currentThreshold * 0.5 -> R.drawable.ic_noise_low
-                db < currentThreshold -> R.drawable.ic_noise_mid
-                else -> R.drawable.ic_noise_high
-            }
-            ivNoiseEmoji.setImageResource(emojiRes)
+            // Update debug text
+            tvDebugDb.text = String.format(Locale.US, "Debug: %.1f dB", db)
             
-            if (db > currentThreshold) {
-                tvCurrentNoise.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_danger))
-            } else {
-                tvCurrentNoise.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_safe))
+            // Calculate target ratio strictly proportional to the current threshold
+            // This means if threshold is 40, then 40dB = 1.0 (Red)
+            // If threshold is 80, then 40dB = 0.5 (Yellow)
+            val targetRatio = (db / currentThreshold).coerceIn(0.0, 1.0).toFloat()
+            
+            // Apply smoothing: 30% target, 70% previous for faster updates
+            smoothedRatio = smoothedRatio * 0.70f + targetRatio * 0.30f
+            
+            // Define color points
+            val colorSafe = ContextCompat.getColor(this@MainActivity, R.color.status_safe)
+            val colorWarning = ContextCompat.getColor(this@MainActivity, R.color.status_warning) // Yellow
+            val colorOrange = android.graphics.Color.rgb(255, 152, 0) // Orange
+            val colorDanger = ContextCompat.getColor(this@MainActivity, R.color.status_danger) // Red
+
+            // Multi-stage interpolation using the smoothed ratio
+            // Logic: Stay green until 70%, transition to yellowish until 100%, then dark red.
+            val finalColor = when {
+                smoothedRatio < 0.70f -> colorSafe
+                smoothedRatio < 0.90f -> interpolateColor(colorSafe, colorWarning, (smoothedRatio - 0.70f) / 0.20f)
+                else -> interpolateColor(colorWarning, colorDanger, ((smoothedRatio - 0.90f) / 0.10f).coerceAtMost(1.0f))
             }
+            
+            // Clear any filter on the image itself to keep the person natural
+            ivNoiseEmoji.clearColorFilter()
+            
+            // Set the inner layout background color
+            innerNoiseLayout.setBackgroundColor(finalColor)
         }
+    }
+
+    private fun interpolateColor(colorStart: Int, colorEnd: Int, ratio: Float): Int {
+        val r = (android.graphics.Color.red(colorStart) + (android.graphics.Color.red(colorEnd) - android.graphics.Color.red(colorStart)) * ratio).toInt()
+        val g = (android.graphics.Color.green(colorStart) + (android.graphics.Color.green(colorEnd) - android.graphics.Color.green(colorStart)) * ratio).toInt()
+        val b = (android.graphics.Color.blue(colorStart) + (android.graphics.Color.blue(colorEnd) - android.graphics.Color.blue(colorStart)) * ratio).toInt()
+        return android.graphics.Color.rgb(r, g, b)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        tvCurrentNoise = findViewById(R.id.tvCurrentNoise)
-        tvThreshold = findViewById(R.id.tvThreshold)
         ivNoiseEmoji = findViewById(R.id.ivNoiseEmoji)
+        noiseCard = findViewById(R.id.noiseCard)
+        tvDebugDb = findViewById(R.id.tvDebugDb)
+        innerNoiseLayout = findViewById(R.id.innerNoiseLayout)
         val rgPresets = findViewById<RadioGroup>(R.id.rgPresets)
         switchMonitor = findViewById(R.id.switchMonitor)
 
@@ -118,18 +147,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus(isMonitoring: Boolean) {
         if (isMonitoring) {
-            tvCurrentNoise.setTextColor(ContextCompat.getColor(this, R.color.status_safe))
-            tvCurrentNoise.text = getString(R.string.current_noise_label, 0)
-            tvThreshold.text = getString(R.string.threshold_label, currentThreshold.toInt())
-            tvThreshold.visibility = View.VISIBLE
-            ivNoiseEmoji.visibility = View.VISIBLE
-            ivNoiseEmoji.setImageResource(R.drawable.ic_noise_low)
+            ivNoiseEmoji.setImageResource(R.drawable.monika)
         } else {
-            tvCurrentNoise.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
-            tvCurrentNoise.text = getString(R.string.current_noise_disabled)
-            tvThreshold.visibility = View.GONE
-            ivNoiseEmoji.visibility = View.INVISIBLE
+            // Reset background to transparent when stopped
+            innerNoiseLayout.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            
+            ivNoiseEmoji.clearColorFilter()
+            tvDebugDb.text = "Debug: -- dB"
         }
+        // Always ensure the image is visible
+        ivNoiseEmoji.visibility = View.VISIBLE
     }
 
     private fun checkPermissions(): Boolean {

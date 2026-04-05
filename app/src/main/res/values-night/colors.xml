@@ -8,7 +8,7 @@
     <!-- Status Colors - Slightly desaturated for Dark Theme -->
     <color name="status_safe">#81C784</color>
     <color name="status_warning">#FFF176</color>
-    <color name="status_danger">#E57373</color>
+    <color name="status_danger">#330000</color>
     <color name="gray_disabled">#424242</color>
 
     <!-- Backgrounds -->
