@@ -70,6 +70,14 @@ class MainActivity : AppCompatActivity() {
                 else -> interpolateColor(colorWarning, colorDanger, ((smoothedRatio - 0.90f) / 0.10f).coerceAtMost(1.0f))
             }
             
+            // Update image based on smoothed ratio
+            val targetImage = when {
+                smoothedRatio < 0.70f -> R.drawable.monika_laiminga
+                smoothedRatio < 0.90f -> R.drawable.monika_mid
+                else -> R.drawable.monika_pikta
+            }
+            ivNoiseEmoji.setImageResource(targetImage)
+            
             // Clear any filter on the image itself to keep the person natural
             ivNoiseEmoji.clearColorFilter()
             
@@ -147,10 +155,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus(isMonitoring: Boolean) {
         if (isMonitoring) {
-            ivNoiseEmoji.setImageResource(R.drawable.monika)
+            ivNoiseEmoji.setImageResource(R.drawable.monika_laiminga)
         } else {
             // Reset background to transparent when stopped
             innerNoiseLayout.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            ivNoiseEmoji.setImageResource(R.drawable.monika_laiminga)
             
             ivNoiseEmoji.clearColorFilter()
             tvDebugDb.text = "Debug: -- dB"
