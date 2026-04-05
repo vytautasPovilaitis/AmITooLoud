@@ -16,8 +16,8 @@
     <string name="status_stopped">Sustabdyta</string>
 
     <!-- Notification & Toast strings -->
-    <string name="notification_title">Per garsu!</string>
-    <string name="notification_text">Triukšmo lygis viršijo nustatytą ribą.</string>
+    <string name="notification_title">Monika,</string>
+    <string name="notification_text">biški chill</string>
     <string name="permissions_required">Stebėjimui reikalingi leidimai</string>
     <string name="channel_name_background">Triukšmo matuoklis (Fonas)</string>
     <string name="channel_desc_background">Reikalinga stebėjimui fone</string>
