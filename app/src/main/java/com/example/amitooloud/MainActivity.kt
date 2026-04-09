@@ -17,6 +17,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 import java.util.Locale
 
@@ -34,56 +37,54 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchMonitor: SwitchCompat
     private lateinit var ivNoiseEmoji: ImageView
     private lateinit var noiseCard: com.google.android.material.card.MaterialCardView
+    private lateinit var controlCard: com.google.android.material.card.MaterialCardView
     private lateinit var tvDebugDb: TextView
     private lateinit var innerNoiseLayout: android.widget.LinearLayout
 
-    private val PRESET_LIBRARY = 40.0
-    private val PRESET_KITCHEN = 80.0
+    private val PRESET_LIBRARY = 45.0
+    private val PRESET_KITCHEN = 85.0
     private val PRESET_RESTAURANT = 65.0
 
     private val noiseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val db = intent?.getDoubleExtra(NoiseMonitorService.EXTRA_DB, 0.0) ?: 0.0
-            
-            // Update debug text
-            tvDebugDb.text = String.format(Locale.US, "Debug: %.1f dB", db)
-            
-            // Calculate target ratio strictly proportional to the current threshold
-            // This means if threshold is 40, then 40dB = 1.0 (Red)
-            // If threshold is 80, then 40dB = 0.5 (Yellow)
-            val targetRatio = (db / currentThreshold).coerceIn(0.0, 1.0).toFloat()
-            
-            // Apply smoothing: 30% target, 70% previous for faster updates
-            smoothedRatio = smoothedRatio * 0.70f + targetRatio * 0.30f
-            
-            // Define color points
-            val colorSafe = ContextCompat.getColor(this@MainActivity, R.color.status_safe)
-            val colorWarning = ContextCompat.getColor(this@MainActivity, R.color.status_warning) // Yellow
-            val colorOrange = android.graphics.Color.rgb(255, 152, 0) // Orange
-            val colorDanger = ContextCompat.getColor(this@MainActivity, R.color.status_danger) // Red
 
-            // Multi-stage interpolation using the smoothed ratio
-            // Logic: Stay green until 70%, transition to yellowish until 100%, then dark red.
-            val finalColor = when {
-                smoothedRatio < 0.70f -> colorSafe
-                smoothedRatio < 0.90f -> interpolateColor(colorSafe, colorWarning, (smoothedRatio - 0.70f) / 0.20f)
-                else -> interpolateColor(colorWarning, colorDanger, ((smoothedRatio - 0.90f) / 0.10f).coerceAtMost(1.0f))
-            }
-            
-            // Update image based on smoothed ratio
-            val targetImage = when {
-                smoothedRatio < 0.70f -> R.drawable.monika_laiminga
-                smoothedRatio < 0.90f -> R.drawable.monika_mid
-                else -> R.drawable.monika_pikta
-            }
-            ivNoiseEmoji.setImageResource(targetImage)
-            
-            // Clear any filter on the image itself to keep the person natural
-            ivNoiseEmoji.clearColorFilter()
-            
-            // Set the inner layout background color
-            innerNoiseLayout.setBackgroundColor(finalColor)
+            tvDebugDb.text = String.format(Locale.US, "Debug: %.1f dB", db)
+
+            val targetRatio = (db / currentThreshold).coerceIn(0.0, 1.0).toFloat()
+            smoothedRatio = smoothedRatio * 0.65f + targetRatio * 0.35f
+
+            val atThreshold = db >= currentThreshold
+            ivNoiseEmoji.setImageResource(when {
+                atThreshold -> R.drawable.monika_pikta
+                smoothedRatio >= 0.75f -> R.drawable.monika_mid
+                else -> R.drawable.monika_laiminga
+            })
+            innerNoiseLayout.setBackgroundColor(
+                if (atThreshold) android.graphics.Color.parseColor("#B71C1C")
+                else colorForRatio(smoothedRatio)
+            )
         }
+    }
+
+    // Stays green until warning (75%), then yellow → orange gradients → deep red
+    private val colorStops = listOf(
+        0.00f to android.graphics.Color.parseColor("#388E3C"),
+        0.74f to android.graphics.Color.parseColor("#388E3C"),
+        0.75f to android.graphics.Color.parseColor("#FDD835"),
+        0.83f to android.graphics.Color.parseColor("#FFB300"),
+        0.88f to android.graphics.Color.parseColor("#FF9800"),
+        0.93f to android.graphics.Color.parseColor("#F44336"),
+        1.00f to android.graphics.Color.parseColor("#B71C1C")
+    )
+
+    private fun colorForRatio(ratio: Float): Int {
+        if (ratio <= colorStops.first().first) return colorStops.first().second
+        if (ratio >= colorStops.last().first) return colorStops.last().second
+        val upper = colorStops.indexOfFirst { it.first >= ratio }
+        val (r1, c1) = colorStops[upper - 1]
+        val (r2, c2) = colorStops[upper]
+        return interpolateColor(c1, c2, (ratio - r1) / (r2 - r1))
     }
 
     private fun interpolateColor(colorStart: Int, colorEnd: Int, ratio: Float): Int {
@@ -99,10 +100,18 @@ class MainActivity : AppCompatActivity() {
 
         ivNoiseEmoji = findViewById(R.id.ivNoiseEmoji)
         noiseCard = findViewById(R.id.noiseCard)
+        controlCard = findViewById(R.id.controlCard)
         tvDebugDb = findViewById(R.id.tvDebugDb)
         innerNoiseLayout = findViewById(R.id.innerNoiseLayout)
         val rgPresets = findViewById<RadioGroup>(R.id.rgPresets)
         switchMonitor = findViewById(R.id.switchMonitor)
+
+        // Edge-to-edge: push control card above the navigation bar on Android 15+
+        ViewCompat.setOnApplyWindowInsetsListener(controlCard) { view, insets ->
+            val navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            view.updatePadding(bottom = navBar.bottom)
+            insets
+        }
 
         updateStatus(false)
         
@@ -145,12 +154,19 @@ class MainActivity : AppCompatActivity() {
         val filter = IntentFilter(NoiseMonitorService.ACTION_NOISE_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(noiseReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(noiseReceiver, filter)
         }
     }
 
     override fun onStop() {
         super.onStop()
-        unregisterReceiver(noiseReceiver)
+        try {
+            unregisterReceiver(noiseReceiver)
+        } catch (_: IllegalArgumentException) {
+            // receiver was never registered (e.g. permissions denied before onStart registered it)
+        }
     }
 
     private fun updateStatus(isMonitoring: Boolean) {

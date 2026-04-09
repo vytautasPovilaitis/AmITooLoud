@@ -9,6 +9,9 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import kotlin.math.log10
 
@@ -22,6 +25,8 @@ class NoiseMonitorService : Service() {
     private var audioRecord: AudioRecord? = null
     private var isRunning = false
     private var thresholdDb = 80.0 // Default threshold in decibels
+    private var lastAlertTime = 0L
+    private var consecutiveOverThreshold = 0
     private val channelId = "NoiseMonitorChannel"
     private val alertChannelId = "NoiseAlertChannel"
     private val notificationId = 1
@@ -80,47 +85,61 @@ class NoiseMonitorService : Service() {
             audioRecord?.startRecording()
 
             Thread {
-                val bufferSizeInShorts = bufferSize
-                val buffer = ShortArray(bufferSizeInShorts)
-                
+                val buffer = ShortArray(bufferSize)
                 var sumSq = 0.0
                 var totalSamples = 0
-                val sampleRate = 44100
 
                 while (isRunning) {
-                    val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
-                    if (readSize > 0) {
-                        for (i in 0 until readSize) {
-                            val sample = buffer[i].toDouble()
-                            sumSq += sample * sample
+                    try {
+                        val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                        if (readSize < 0) {
+                            // AudioRecord entered error state (e.g. audio focus lost after
+                            // notification sound). Sleep briefly to avoid a spin loop.
+                            Thread.sleep(50)
+                            continue
                         }
-                        totalSamples += readSize
-
-                        // When we have enough samples (shorter window for smoother updates)
-                        if (totalSamples >= 4410) { // 0.1s update interval
-                            val rms = Math.sqrt(sumSq / totalSamples)
-                            
-                            // 20 * log10(rms / 32768.0) is dB relative to full scale (dBFS)
-                            var db = if (rms > 0.1) 20 * log10(rms / 32768.0) + 90 else 0.0
-
-                            // Smoothing logic
-                            if (db < 30) {
-                                db = (db - 27.0).coerceAtLeast(0.0) * (30.0 / 3.0)
+                        if (readSize > 0) {
+                            for (i in 0 until readSize) {
+                                val sample = buffer[i].toDouble()
+                                sumSq += sample * sample
                             }
+                            totalSamples += readSize
 
-                            // Broadcast the noise level
-                            val intent = Intent(ACTION_NOISE_UPDATE)
-                            intent.putExtra(EXTRA_DB, db)
-                            sendBroadcast(intent)
+                            // Accumulate 0.5s of audio so brief peaks are averaged out
+                            if (totalSamples >= 22050) {
+                                val rms = Math.sqrt(sumSq / totalSamples)
 
-                            if (db > thresholdDb) {
-                                sendAlertNotification(db)
+                                // Hard gate: rms < 50 is electronic noise floor → 0
+                                // +85 offset calibrated for S25 (was +90, shifted down 5 dB)
+                                var db = if (rms > 50) 20 * log10(rms / 32768.0) + 85 else 0.0
+
+
+                                // Broadcast the noise level
+                                val intent = Intent(ACTION_NOISE_UPDATE)
+                                intent.putExtra(EXTRA_DB, db)
+                                intent.setPackage(packageName)
+                                sendBroadcast(intent)
+
+                                // Alert only after 3 continuous seconds above threshold
+                                // (6 × 0.5s windows). Resets as soon as it drops below.
+                                if (db > thresholdDb) {
+                                    consecutiveOverThreshold++
+                                } else {
+                                    consecutiveOverThreshold = 0
+                                }
+                                val now = System.currentTimeMillis()
+                                if (consecutiveOverThreshold >= 6 && now - lastAlertTime > 10_000) {
+                                    lastAlertTime = now
+                                    sendAlertNotification(db)
+                                }
+
+                                sumSq = 0.0
+                                totalSamples = 0
                             }
-
-                            // Reset for the next window
-                            sumSq = 0.0
-                            totalSamples = 0
                         }
+                    } catch (e: Exception) {
+                        // Swallow transient errors (e.g. notification rate limit on Android 16)
+                        // so the monitoring loop keeps running
                     }
                 }
             }.start()
@@ -135,12 +154,20 @@ class NoiseMonitorService : Service() {
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_text))
             .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(Notification.DEFAULT_ALL)
             .setAutoCancel(true)
             .build()
 
         notificationManager.notify(alertNotificationId, alertNotification)
+
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
 
     private fun createNotificationChannels() {
