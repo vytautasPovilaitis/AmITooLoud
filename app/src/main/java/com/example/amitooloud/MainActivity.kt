@@ -9,7 +9,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -33,107 +32,71 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var currentThreshold = 70.0
-    private var smoothedRatio = 0.0f
     private lateinit var switchMonitor: SwitchCompat
-    private lateinit var ivNoiseEmoji: ImageView
-    private lateinit var noiseCard: com.google.android.material.card.MaterialCardView
     private lateinit var controlCard: com.google.android.material.card.MaterialCardView
     private lateinit var tvDebugDb: TextView
-    private lateinit var innerNoiseLayout: android.widget.LinearLayout
 
     private val PRESET_LIBRARY = 45.0
-    private val PRESET_KITCHEN = 85.0
-    private val PRESET_RESTAURANT = 65.0
+    private val PRESET_KITCHEN = 65.0
+    private val PRESET_RESTAURANT = 55.0
 
     private val noiseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            // Ignore a late update that arrives after monitoring was switched off
+            if (!switchMonitor.isChecked) return
             val db = intent?.getDoubleExtra(NoiseMonitorService.EXTRA_DB, 0.0) ?: 0.0
 
             tvDebugDb.text = String.format(Locale.US, "Debug: %.1f dB", db)
-
-            val targetRatio = (db / currentThreshold).coerceIn(0.0, 1.0).toFloat()
-            smoothedRatio = smoothedRatio * 0.65f + targetRatio * 0.35f
-
-            val atThreshold = db >= currentThreshold
-            ivNoiseEmoji.setImageResource(when {
-                atThreshold -> R.drawable.monika_pikta
-                smoothedRatio >= 0.75f -> R.drawable.monika_mid
-                else -> R.drawable.monika_laiminga
-            })
-            innerNoiseLayout.setBackgroundColor(
-                if (atThreshold) android.graphics.Color.parseColor("#B71C1C")
-                else colorForRatio(smoothedRatio)
-            )
         }
-    }
-
-    // Stays green until warning (75%), then yellow → orange gradients → deep red
-    private val colorStops = listOf(
-        0.00f to android.graphics.Color.parseColor("#388E3C"),
-        0.74f to android.graphics.Color.parseColor("#388E3C"),
-        0.75f to android.graphics.Color.parseColor("#FDD835"),
-        0.83f to android.graphics.Color.parseColor("#FFB300"),
-        0.88f to android.graphics.Color.parseColor("#FF9800"),
-        0.93f to android.graphics.Color.parseColor("#F44336"),
-        1.00f to android.graphics.Color.parseColor("#B71C1C")
-    )
-
-    private fun colorForRatio(ratio: Float): Int {
-        if (ratio <= colorStops.first().first) return colorStops.first().second
-        if (ratio >= colorStops.last().first) return colorStops.last().second
-        val upper = colorStops.indexOfFirst { it.first >= ratio }
-        val (r1, c1) = colorStops[upper - 1]
-        val (r2, c2) = colorStops[upper]
-        return interpolateColor(c1, c2, (ratio - r1) / (r2 - r1))
-    }
-
-    private fun interpolateColor(colorStart: Int, colorEnd: Int, ratio: Float): Int {
-        val r = (android.graphics.Color.red(colorStart) + (android.graphics.Color.red(colorEnd) - android.graphics.Color.red(colorStart)) * ratio).toInt()
-        val g = (android.graphics.Color.green(colorStart) + (android.graphics.Color.green(colorEnd) - android.graphics.Color.green(colorStart)) * ratio).toInt()
-        val b = (android.graphics.Color.blue(colorStart) + (android.graphics.Color.blue(colorEnd) - android.graphics.Color.blue(colorStart)) * ratio).toInt()
-        return android.graphics.Color.rgb(r, g, b)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        ivNoiseEmoji = findViewById(R.id.ivNoiseEmoji)
-        noiseCard = findViewById(R.id.noiseCard)
         controlCard = findViewById(R.id.controlCard)
         tvDebugDb = findViewById(R.id.tvDebugDb)
-        innerNoiseLayout = findViewById(R.id.innerNoiseLayout)
         val rgPresets = findViewById<RadioGroup>(R.id.rgPresets)
         switchMonitor = findViewById(R.id.switchMonitor)
 
-        // Edge-to-edge: push control card above the navigation bar on Android 15+
-        ViewCompat.setOnApplyWindowInsetsListener(controlCard) { view, insets ->
+        // Edge-to-edge is enforced on Android 15+: keep content clear of the status bar /
+        // camera cutout at the top and the navigation bar at the bottom
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.appBarLayout)) { view, insets ->
+            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            view.updatePadding(top = top.top)
+            insets
+        }
+        // Padding goes on the card's content: MaterialCardView ignores its own padding
+        val controlContent = findViewById<View>(R.id.controlContent)
+        val contentPaddingBottom = controlContent.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(controlCard) { _, insets ->
             val navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            view.updatePadding(bottom = navBar.bottom)
+            controlContent.updatePadding(bottom = contentPaddingBottom + navBar.bottom)
             insets
         }
 
-        updateStatus(false)
-        
+        val prefs = getPreferences(Context.MODE_PRIVATE)
+        // Stored by entry name: resource ids aren't stable between builds
+        val savedPreset = prefs.getString(KEY_PRESET, null)
+        rgPresets.check(when (savedPreset) {
+            "rbKitchen" -> R.id.rbKitchen
+            "rbRestaurant" -> R.id.rbRestaurant
+            else -> R.id.rbLibrary
+        })
+        currentThreshold = thresholdFor(rgPresets.checkedRadioButtonId)
+
+        // Restore the switch if the service is still running from before a recreation
+        switchMonitor.isChecked = NoiseMonitorService.isMonitoring
+        updateStatus(switchMonitor.isChecked)
+
         rgPresets.setOnCheckedChangeListener { _, checkedId ->
-            when (checkedId) {
-                R.id.rbLibrary -> {
-                    currentThreshold = PRESET_LIBRARY
-                }
-                R.id.rbKitchen -> {
-                    currentThreshold = PRESET_KITCHEN
-                }
-                R.id.rbRestaurant -> {
-                    currentThreshold = PRESET_RESTAURANT
-                }
-            }
-            
+            currentThreshold = thresholdFor(checkedId)
+            prefs.edit().putString(KEY_PRESET, resources.getResourceEntryName(checkedId)).apply()
+
             if (switchMonitor.isChecked) {
-                startNoiseService()
+                updateServiceThreshold()
             }
         }
-
-        rgPresets.check(R.id.rbLibrary)
 
         switchMonitor.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -149,8 +112,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun thresholdFor(presetId: Int): Double = when (presetId) {
+        R.id.rbKitchen -> PRESET_KITCHEN
+        R.id.rbRestaurant -> PRESET_RESTAURANT
+        else -> PRESET_LIBRARY
+    }
+
     override fun onStart() {
         super.onStart()
+        // The service may have stopped itself (e.g. the microphone became unavailable)
+        if (switchMonitor.isChecked && !NoiseMonitorService.isMonitoring) {
+            switchMonitor.isChecked = false
+        }
         val filter = IntentFilter(NoiseMonitorService.ACTION_NOISE_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(noiseReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -170,18 +143,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus(isMonitoring: Boolean) {
-        if (isMonitoring) {
-            ivNoiseEmoji.setImageResource(R.drawable.monika_laiminga)
-        } else {
-            // Reset background to transparent when stopped
-            innerNoiseLayout.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            ivNoiseEmoji.setImageResource(R.drawable.monika_laiminga)
-            
-            ivNoiseEmoji.clearColorFilter()
+        if (!isMonitoring) {
             tvDebugDb.text = "Debug: -- dB"
         }
-        // Always ensure the image is visible
-        ivNoiseEmoji.visibility = View.VISIBLE
     }
 
     private fun checkPermissions(): Boolean {
@@ -202,7 +166,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startNoiseService() {
         val intent = Intent(this, NoiseMonitorService::class.java).apply {
-            putExtra("THRESHOLD", currentThreshold)
+            putExtra(NoiseMonitorService.EXTRA_THRESHOLD, currentThreshold)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -212,18 +176,30 @@ class MainActivity : AppCompatActivity() {
         updateStatus(true)
     }
 
+    // Plain startService is enough while visible; startForegroundService would oblige the
+    // service to call startForeground() again for every preset change
+    private fun updateServiceThreshold() {
+        startService(Intent(this, NoiseMonitorService::class.java).apply {
+            putExtra(NoiseMonitorService.EXTRA_THRESHOLD, currentThreshold)
+        })
+    }
+
     private fun stopNoiseService() {
         val intent = Intent(this, NoiseMonitorService::class.java)
         stopService(intent)
         updateStatus(false)
     }
 
+    companion object {
+        private const val KEY_PRESET = "preset"
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
             if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                // The switch listener starts the service
                 switchMonitor.isChecked = true
-                startNoiseService()
             } else {
                 Toast.makeText(this, getString(R.string.permissions_required), Toast.LENGTH_LONG).show()
             }
