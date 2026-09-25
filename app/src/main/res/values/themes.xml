@@ -9,13 +9,8 @@
         <item name="colorSecondary">@color/accent</item>
         <item name="colorSecondaryVariant">@color/accent</item>
         <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- Radio buttons switch instantly (no animated fill) -->
+        <item name="listChoiceIndicatorSingleAnimated">@drawable/radio_button</item>
         <!-- Customize your theme here. -->
-    </style>
-
-    <style name="CircleImage">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">50%</item>
     </style>
 </resources>

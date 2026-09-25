@@ -28,39 +28,10 @@
             android:paddingHorizontal="24dp"
             android:paddingBottom="24dp">
 
-            <!-- Real-time Meter Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/noiseCard"
-                android:layout_width="match_parent"
-                android:layout_height="350dp"
-                app:cardCornerRadius="24dp"
-                app:cardElevation="2dp"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:id="@+id/innerNoiseLayout"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <ImageView
-                        android:id="@+id/ivNoiseEmoji"
-                        android:layout_width="296dp"
-                        android:layout_height="285dp"
-                        android:adjustViewBounds="true"
-                        android:contentDescription="@string/noise_emoji_description"
-                        android:scaleType="fitCenter"
-                        android:src="@drawable/monika_laiminga" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="16dp"
                 android:text="@string/select_environment"
                 android:textColor="@color/text_primary"
@@ -118,6 +89,7 @@
         app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
+            android:id="@+id/controlContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
